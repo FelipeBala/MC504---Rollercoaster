@@ -15,17 +15,17 @@ LL = threading.Condition()
 
 pessoas_sentadas = 0
 pessoas_fila = 0
+trem = 0
 
 #---------Input de parametros ---------
 a = int(input("Max pessoas na Fila"))
 b = int(input("Max pessoas no Trem"))
 c = float(input("Tempo de passeo do Trem"))
-d = float(input("Tempo de Spawn das Pessoas(>= 2) "))
+d = float(input("Tempo de Spawn das Pessoas "))
 e = float(input("Velocidade das pessoas (ms)"))
 
 e = e/1000
-if d < 2:
-	d = 2
+
 caracteres.rollercoaster.inicia_parametros(a,b)
 caracteres.personagem.inicia_parametros(e)
 lugares = threading.Semaphore(b)
@@ -47,7 +47,8 @@ def pessoa(num):
 	global base
 	global pessoas_fila
 	global pessoas_sentadas
-	global b;
+	global b
+	global trem
 	
 	#Inicia
 	u = num % 8 +1
@@ -57,14 +58,16 @@ def pessoa(num):
 	
 	#vai para a fila
 	fila.acquire()
-	if p1.pega_posicao() == -1:
-		p1.vai_para_fila()
-		fila.release()
+	iii = p1.pega_posicao()
+	fila.release()
+		
+	p1.vai_para_fila()
+	
+	if iii == -1:
 		p1.remove()
 		print(repr(num)+"=Fila cheia, vou embora")
 		return
-	fila.release()	
-	p1.vai_para_fila()
+
 	
 	print(repr(num)+"= já estou na fila")
 	
@@ -72,19 +75,18 @@ def pessoa(num):
 	lugares.acquire()
 	pessoas_fila+=1
 	print(repr(num)+"= já peguei o ticket do trem")
-	ha_trem.acquire()
-	if pessoas_fila == b:
-		ha_trem.notify_all()
-	else:
-		ha_trem.wait()
-	ha_trem.release()
+
+	chegou_trem.acquire()
+	while trem == 0:
+		chegou_trem.wait(1)
+	chegou_trem.release()
 	
 	# Vai se sentar
 	fila2.acquire()
 	p1.limpa_vaga()
-	p1.vai_para_o_trem()
 	print(repr(num)+"= já estou sentado no trem")
 	fila2.release()
+	p1.vai_para_o_trem()
 	
 	#todos sentados
 	parte_trem.acquire()
@@ -116,16 +118,16 @@ def trem(num):
 	global a
 	global b
 	global c
+	global trem
+	chegou_trem.acquire()
 	grafico.train_chega()
+	trem = 1
+	chegou_trem.notify_all()
+	chegou_trem.release()
+	
 	while True:
 		
 		#aqui
-		
-		while pessoas_fila != b:
-			ha_trem.acquire()
-			ha_trem.wait(1)
-			ha_trem.release()
-		
 		pessoas_fila=0
 		print("Passageiros carregados")
 		while pessoas_sentadas != b:
@@ -134,8 +136,10 @@ def trem(num):
 			parte_trem.release()
 		chegou_trem.acquire()
 		grafico.train_parte()
+		trem = 0
 		time.sleep(c)
 		grafico.train_chega()
+		trem = 1
 		chegou_trem.notify_all()
 		chegou_trem.release()
 		#sleep
@@ -159,9 +163,11 @@ timer.start()
 Trem = threading.Thread(target=trem,args=[999])
 Trem.start()
 
-for i in range(500):
+i=0
+while True:
 	T = threading.Thread(target=pessoa,args=[i])
 	T.start()
+	i+=1
 	time.sleep(d)
 	
 
